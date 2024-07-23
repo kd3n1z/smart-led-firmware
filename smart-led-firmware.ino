@@ -5,8 +5,8 @@
 #include "frontend.h"
 
 // WI-FI
-const char* ssid = STASSID;
-const char* password = STAPSK;
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
 
 IPAddress local_ip(192, 168, 0, 110);
 IPAddress gateway(192, 168, 0, 1);
