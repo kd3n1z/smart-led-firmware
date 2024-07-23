@@ -1,0 +1,7 @@
+// server_setup.h
+#ifndef SERVER_FRONTEND_SETUP_H
+#define SERVER_FRONTEND_SETUP_H
+
+void SETUP_FRONTEND_SERVER();
+
+#endif // SERVER_SETUP_H
