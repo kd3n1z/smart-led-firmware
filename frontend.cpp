@@ -1,4 +1,5 @@
 // Auto-generated via generate_cpp.sh
+// https://github.com/kd3n1z/smart-led-web-gui
 
 #include <ESP8266WebServer.h>
 #include "frontend.h"
