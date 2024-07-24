@@ -16,7 +16,8 @@ IPAddress subnet(255, 255, 255, 0);
 #define NUM_LEDS 120
 #define DATA_PIN D1
 
-CRGB leds[NUM_LEDS];
+CRGB solidLeds[NUM_LEDS];
+CRGB* leds = nullptr;
 
 // Server
 ESP8266WebServer server(80);
@@ -50,6 +51,7 @@ void setup() {
     server.sendHeader("Location", String("/gui/"), true);
     server.send(302, "text/plain", "");
   });
+  server.on("/api", handle_api_request);
   server.onNotFound([]() {
     server.send(404, "text/plain", "Not found");
   });
@@ -59,17 +61,79 @@ void setup() {
 
   // FastLED Setup
 
+  leds = solidLeds;
+
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
 
   Serial.println("Setup finished");
+
+  for (int i = 0; i < NUM_LEDS; i++) {
+    solidLeds[i].setRGB(255, 0, 0);
+  }
 }
 
 void loop() {
   server.handleClient();
 
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i].setRGB(255, 162, 57);
+  FastLED.show();
+}
+
+String* splitString(String data, char delimiter, int& numSubstrings) {
+  numSubstrings = 1;
+  for (int i = 0; i < data.length(); i++) {
+    if (data.charAt(i) == delimiter) {
+      numSubstrings++;
+    }
   }
 
-  FastLED.show();
+  String* substrings = new String[numSubstrings];
+  int currentIndex = 0;
+  int startIndex = 0;
+  int endIndex = data.indexOf(delimiter);
+
+  while (endIndex > 0) {
+    substrings[currentIndex] = data.substring(startIndex, endIndex);
+    currentIndex++;
+    startIndex = endIndex + 1;
+    endIndex = data.indexOf(delimiter, startIndex);
+  }
+
+  substrings[currentIndex] = data.substring(startIndex);
+
+  return substrings;
+}
+
+void handle_api_request() {
+  String commands = server.arg("commands");
+
+  Serial.println(commands);
+
+  int numSubstrings = 0;
+  String* substrings = splitString(commands, ';', numSubstrings);
+
+  for (int i = 0; i < numSubstrings; i++) {
+    executeCommand(substrings[i]);
+  }
+
+  delete[] substrings;
+
+  server.send(200, "text/plain", "ok");
+}
+
+
+void executeCommand(String command) {
+  int numSubstrings = 0;
+  String* substrings = splitString(command, ' ', numSubstrings);
+
+  if (substrings[0] == "set-solid-color") {
+    int r = substrings[1].toInt();
+    int g = substrings[2].toInt();
+    int b = substrings[3].toInt();
+
+    for (int i = 0; i < NUM_LEDS; i++) {
+      solidLeds[i].setRGB(r, g, b);
+    }
+  }
+
+  delete[] substrings;
 }
