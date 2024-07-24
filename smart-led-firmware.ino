@@ -1,6 +1,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <FastLED.h>
+#include <EEPROM.h>
 #include "secrets.h"
 #include "frontend.h"
 
@@ -22,11 +23,22 @@ CRGB* leds = nullptr;
 // Server
 ESP8266WebServer server(80);
 
+// General
+#define SAVE_DELAY 5000
+#define TEST_NUMBER 1
+
+struct {
+  int testNumber;
+  int solidRed;
+  int solidGreen;
+  int solidBlue;
+} settings;
+
 void setup() {
-  // General Setup
+  // Serial setup
   Serial.begin(115200);
 
-  // Wi-Fi Setup
+  // Wi-Fi setup
 
   Serial.print("Connecting to " + String(ssid) + "... ");
 
@@ -42,7 +54,7 @@ void setup() {
   Serial.print("done! IP: ");
   Serial.println(WiFi.localIP());
 
-  // Server Setup
+  // Server setup
 
   Serial.print("Starting HTTP server... ");
 
@@ -59,21 +71,58 @@ void setup() {
   server.begin();
   Serial.println("done");
 
-  // FastLED Setup
+  // FastLED setup
+
+  Serial.print("Setting up LEDs... ");
 
   leds = solidLeds;
-
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
 
-  Serial.println("Setup finished");
+  Serial.println("done");
+
+  // Read settings
+
+  Serial.print("Reading settings from EEPROM... ");
+
+  EEPROM.begin(512);
+
+  EEPROM.get(0, settings);
+
+  if (settings.testNumber == TEST_NUMBER) {
+    Serial.println("done");
+  } else {
+    Serial.println("invalid test number (got " + String(settings.testNumber) + ", expected " + String(TEST_NUMBER) + "), setting defaults");
+
+    settings.testNumber = TEST_NUMBER;
+    settings.solidRed = 255;
+    settings.solidGreen = 255;
+    settings.solidBlue = 255;
+
+    saveSettings();
+  }
 
   for (int i = 0; i < NUM_LEDS; i++) {
-    solidLeds[i].setRGB(255, 0, 0);
+    solidLeds[i].setRGB(settings.solidRed, settings.solidGreen, settings.solidBlue);
   }
+
+  Serial.println("Setup finished");
 }
+
+bool solidColorSaveScheduled = false;
+unsigned long solidColorSaveTime;
 
 void loop() {
   server.handleClient();
+
+  if (solidColorSaveScheduled && millis() >= solidColorSaveTime) {
+    settings.solidRed = solidLeds[0].red;
+    settings.solidGreen = solidLeds[0].green;
+    settings.solidBlue = solidLeds[0].blue;
+
+    saveSettings();
+
+    solidColorSaveScheduled = false;
+  }
 
   FastLED.show();
 }
@@ -141,6 +190,9 @@ String executeCommand(String command) {
         solidLeds[i].setRGB(r, g, b);
       }
 
+      solidColorSaveScheduled = true;
+      solidColorSaveTime = millis() + SAVE_DELAY;
+
       result = "ok";
     }
 
@@ -148,4 +200,11 @@ String executeCommand(String command) {
   }
 
   return result;
+}
+
+void saveSettings() {
+  Serial.print("Writing to EEPROM... ");
+  EEPROM.put(0, settings);
+  EEPROM.commit();
+  Serial.println("done");
 }
