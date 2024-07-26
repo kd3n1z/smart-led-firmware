@@ -35,6 +35,7 @@ struct {
   int solidRed;
   int solidGreen;
   int solidBlue;
+  uint8_t brightness;
 } settings;
 
 void setup() {
@@ -105,6 +106,7 @@ void setup() {
     settings.solidRed = 255;
     settings.solidGreen = 255;
     settings.solidBlue = 255;
+    settings.brightness = 255;
 
     saveSettings();
   }
@@ -118,7 +120,6 @@ void setup() {
 
 bool solidColorSaveScheduled = false;
 unsigned long solidColorSaveTime;
-uint8_t brightness = 255;
 
 void loop() {
   server.handleClient();
@@ -150,16 +151,16 @@ uint8_t getBrightness() {
     changeOnTime = millis();
   }
 
-  unsigned long timeDiff = (millis() - changeOnTime) * brightness / OFF_TIME;
+  unsigned long timeDiff = (millis() - changeOnTime) * settings.brightness / OFF_TIME;
 
-  if (timeDiff > brightness) {
-    timeDiff = brightness;
+  if (timeDiff > settings.brightness) {
+    timeDiff = settings.brightness;
   }
 
   if (isOn) {
     return timeDiff;
   } else {
-    return brightness - timeDiff;
+    return settings.brightness - timeDiff;
   }
 }
 
@@ -225,6 +226,11 @@ struct RGB hexToRGB(const String& hex) {
   return rgb;
 }
 
+void scheduleSave() {
+  solidColorSaveScheduled = true;
+  solidColorSaveTime = millis() + SAVE_DELAY;
+}
+
 String executeCommand(String command) {
   String result = "unknown";
 
@@ -233,7 +239,7 @@ String executeCommand(String command) {
   } else if (command == "get-leds-count") {
     result = String(NUM_LEDS);
   } else if (command == "get-brightness") {
-    result = String(brightness);
+    result = String(settings.brightness);
   } else {
     int numSubstrings = 0;
     String* substrings = splitString(command, ' ', numSubstrings);
@@ -247,8 +253,7 @@ String executeCommand(String command) {
         solidLeds[i].setRGB(r, g, b);
       }
 
-      solidColorSaveScheduled = true;
-      solidColorSaveTime = millis() + SAVE_DELAY;
+      scheduleSave();
 
       result = "ok";
     } else if (substrings[0] == "set-zones") {
@@ -262,7 +267,9 @@ String executeCommand(String command) {
 
       result = "ok";
     } else if (substrings[0] == "set-brightness") {
-      brightness = substrings[1].toInt();
+      settings.brightness = substrings[1].toInt();
+
+      scheduleSave();
 
       result = "ok";
     }
