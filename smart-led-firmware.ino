@@ -17,6 +17,7 @@ IPAddress subnet(255, 255, 255, 0);
 #define NUM_LEDS 119
 #define DATA_PIN D1
 
+CRGB zoneLeds[NUM_LEDS];
 CRGB solidLeds[NUM_LEDS];
 CRGB* leds = nullptr;
 
@@ -24,8 +25,10 @@ CRGB* leds = nullptr;
 ESP8266WebServer server(80);
 
 // General
-#define SAVE_DELAY 5000
+#define SAVE_DELAY 10000
 #define TEST_NUMBER 1
+#define SWITCH_PIN D2
+#define OFF_TIME 200
 
 struct {
   int testNumber;
@@ -37,6 +40,10 @@ struct {
 void setup() {
   // Serial setup
   Serial.begin(115200);
+
+  // Pins setup
+
+  pinMode(SWITCH_PIN, INPUT_PULLUP);
 
   // Wi-Fi setup
 
@@ -76,6 +83,7 @@ void setup() {
   Serial.print("Setting up LEDs... ");
 
   leds = solidLeds;
+
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
 
   Serial.println("done");
@@ -110,6 +118,7 @@ void setup() {
 
 bool solidColorSaveScheduled = false;
 unsigned long solidColorSaveTime;
+uint8_t brightness = 255;
 
 void loop() {
   server.handleClient();
@@ -125,6 +134,33 @@ void loop() {
   }
 
   FastLED.show();
+  FastLED.setBrightness(getBrightness());
+}
+
+uint8_t getBrightness() {
+  static unsigned long changeOnTime = 0;
+
+  static bool wasOn = false;
+
+  bool isOn = !digitalRead(SWITCH_PIN);
+
+  if (isOn != wasOn) {
+    wasOn = isOn;
+
+    changeOnTime = millis();
+  }
+
+  unsigned long timeDiff = (millis() - changeOnTime) * brightness / OFF_TIME;
+
+  if (timeDiff > brightness) {
+    timeDiff = brightness;
+  }
+
+  if (isOn) {
+    return timeDiff;
+  } else {
+    return brightness - timeDiff;
+  }
 }
 
 String* splitString(String data, char delimiter, int& numSubstrings) {
@@ -158,6 +194,8 @@ void handle_api_request() {
 }
 
 String executeCommands(String commands) {
+  unsigned long startTime = millis();
+
   String result = "";
 
   int numSubstrings = 0;
@@ -168,15 +206,34 @@ String executeCommands(String commands) {
 
   delete[] substrings;
 
-  return result;
+  return result + String(millis() - startTime);
 }
 
+struct RGB {
+  int r;
+  int g;
+  int b;
+};
+
+struct RGB hexToRGB(const String& hex) {
+  struct RGB rgb;
+
+  rgb.r = strtol(hex.substring(0, 2).c_str(), nullptr, 16);
+  rgb.g = strtol(hex.substring(2, 4).c_str(), nullptr, 16);
+  rgb.b = strtol(hex.substring(4, 6).c_str(), nullptr, 16);
+
+  return rgb;
+}
 
 String executeCommand(String command) {
   String result = "unknown";
 
   if (command == "get-solid-color") {
     result = String(solidLeds[0].red) + " " + String(solidLeds[0].green) + " " + String(solidLeds[0].blue);
+  } else if (command == "get-leds-count") {
+    result = String(NUM_LEDS);
+  } else if (command == "get-brightness") {
+    result = String(brightness);
   } else {
     int numSubstrings = 0;
     String* substrings = splitString(command, ' ', numSubstrings);
@@ -192,6 +249,20 @@ String executeCommand(String command) {
 
       solidColorSaveScheduled = true;
       solidColorSaveTime = millis() + SAVE_DELAY;
+
+      result = "ok";
+    } else if (substrings[0] == "set-zones") {
+      for (int i = 0; i < NUM_LEDS; i++) {
+        int startIndex = i * 6;
+
+        struct RGB rgb = hexToRGB(substrings[1].substring(startIndex, startIndex + 6));
+
+        zoneLeds[i].setRGB(rgb.r, rgb.g, rgb.b);
+      }
+
+      result = "ok";
+    } else if (substrings[0] == "set-brightness") {
+      brightness = substrings[1].toInt();
 
       result = "ok";
     }
