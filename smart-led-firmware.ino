@@ -27,7 +27,7 @@ ESP8266WebServer server(80);
 // General
 #define SAVE_DELAY 10000
 #define TEST_NUMBER 1
-#define SWITCH_PIN D2
+#define SWITCH_PIN D3
 #define OFF_TIME 200
 
 struct {
