@@ -29,6 +29,7 @@ ESP8266WebServer server(80);
 #define TEST_NUMBER 1
 #define SWITCH_PIN D3
 #define OFF_TIME 200
+#define FILTER_NUM_READ 10
 
 struct {
   int testNumber;
@@ -143,7 +144,17 @@ uint8_t getBrightness() {
 
   static bool wasOn = false;
 
-  bool isOn = !digitalRead(SWITCH_PIN);
+  int sum = 0;
+
+  for (int i = 0; i < FILTER_NUM_READ; i++) {
+    if (!digitalRead(SWITCH_PIN)) {
+      sum += 1;
+    } else {
+      sum -= 1;
+    }
+  }
+
+  bool isOn = sum > 0;
 
   if (isOn != wasOn) {
     wasOn = isOn;
